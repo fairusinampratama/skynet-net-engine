@@ -1,0 +1,221 @@
+basePath: /api/v1
+definitions:
+  api.CreateSecretRequest:
+    properties:
+      comment:
+        type: string
+      local_ip:
+        type: string
+      password:
+        type: string
+      profile:
+        type: string
+      remote_ip:
+        type: string
+      user:
+        type: string
+    required:
+    - password
+    - profile
+    - user
+    type: object
+  api.IsolateRequest:
+    properties:
+      action:
+        description: add or remove
+        enum:
+        - add
+        - remove
+        type: string
+      comment:
+        type: string
+      ip:
+        type: string
+      list:
+        description: Default to "ISOLATED" if empty
+        type: string
+    required:
+    - action
+    - ip
+    type: object
+  api.UpdatePlanRequest:
+    properties:
+      profile:
+        type: string
+    required:
+    - profile
+    type: object
+  models.SystemResource:
+    properties:
+      board_name:
+        type: string
+      cpu:
+        description: Load in %
+        type: string
+      free_memory:
+        type: integer
+      total_memory:
+        type: integer
+      uptime:
+        type: string
+      version:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: Middleware for managing Mikrotik Routers
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: NetEngine API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Checks if the NetEngine Muscle is alive
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get API Health
+      tags:
+      - System
+  /isolate:
+    post:
+      consumes:
+      - application/json
+      description: Adds or removes a user from a Firewall Address List
+      parameters:
+      - description: Isolation Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.IsolateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Isolate User
+      tags:
+      - Advanced
+  /router/{id}/health:
+    get:
+      consumes:
+      - application/json
+      description: Returns CPU, Memory, and Uptime
+      parameters:
+      - description: Router ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SystemResource'
+      summary: Get Router Health
+      tags:
+      - Monitoring
+  /secret:
+    post:
+      consumes:
+      - application/json
+      description: Adds a new PPPoE secret to a router
+      parameters:
+      - description: Secret Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateSecretRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Create PPP Secret
+      tags:
+      - Bridge
+  /secret/{user}:
+    put:
+      consumes:
+      - application/json
+      description: Updates the profile of an existing secret
+      parameters:
+      - description: Username
+        in: path
+        name: user
+        required: true
+        type: string
+      - description: Plan Data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdatePlanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Change Plan
+      tags:
+      - Bridge
+  /sync/{id}:
+    post:
+      consumes:
+      - application/json
+      description: Triggers an immediate sync of active users
+      parameters:
+      - description: Router ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Force Sync Router
+      tags:
+      - Control
+securityDefinitions:
+  AppKey:
+    in: header
+    name: X-App-Key
+    type: apiKey
+swagger: "2.0"

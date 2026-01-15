@@ -1,0 +1,17 @@
+[Unit]
+Description=NetEngine - ISP Middleware Service
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/skynet-net-engine-api
+ExecStart=/opt/skynet-net-engine-api/skynet-net-engine-api
+Restart=always
+RestartSec=5
+EnvironmentFile=/opt/skynet-net-engine-api/.env
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
