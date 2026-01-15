@@ -117,6 +117,7 @@ func Start(port string) {
 		secured.GET("/routers", GetRouters)
 		secured.GET("/monitoring/targets", GetTargets)
 		secured.GET("/router/:id/health", GetRouterHealth)
+		secured.GET("/router/:id/users", GetAllUsers)
 		secured.GET("/router/:id/traffic", GetUserTraffic)
 		secured.POST("/router/:id/backup", TriggerBackup)
 	}

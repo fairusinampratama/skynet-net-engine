@@ -6,16 +6,14 @@ import { Skeleton } from "../../components/ui/Skeleton";
 
 const fetcher = (url) => api.get(url).then((res) => res.data);
 
-export const CustomerTable = ({ onSelectUser, selectedUser }) => {
+export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
     const [page, setPage] = useState(1);
     const PAGE_SIZE = 10;
 
-    const { data, error } = useSWR("/monitoring/targets", fetcher, {
-        refreshInterval: 10000,
+    const { data, error, isLoading } = useSWR(`/router/${routerId}/users`, fetcher, {
+        refreshInterval: 30000,
+        revalidateOnFocus: false,
     });
-
-    const isTransient = error && [500, 502, 503, 504].includes(error.response?.status);
-    const isLoading = !data && (!error || isTransient);
 
     // Pagination Logic
     const safeData = data || [];
@@ -56,19 +54,26 @@ export const CustomerTable = ({ onSelectUser, selectedUser }) => {
                         {paginatedData.map((user, i) => (
                             <tr
                                 key={i}
-                                onClick={() => onSelectUser && onSelectUser(user.name)}
-                                className={`cursor-pointer transition-colors ${selectedUser === user.name ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                                onClick={() => onSelectUser && onSelectUser(user.username)}
+                                className={`cursor-pointer transition-colors ${selectedUser === user.username ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                             >
                                 <td className="px-6 py-4 font-medium text-slate-900 flex items-center gap-2">
-                                    {selectedUser === user.name && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
-                                    {user.name}
+                                    {selectedUser === user.username && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                                    {user.username}
                                 </td>
-                                <td className="px-6 py-4 text-slate-600 font-mono text-sm">{user.address}</td>
+                                <td className="px-6 py-4 text-slate-600 font-mono text-sm">{user.ip || '-'}</td>
                                 <td className="px-6 py-4">
-                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                                        <Wifi className="w-3 h-3" />
-                                        Connected
-                                    </span>
+                                    {user.status === 'connected' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                            <Wifi className="w-3 h-3" />
+                                            Connected
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                                            <div className="w-2 h-2 rounded-full bg-slate-400" />
+                                            Offline
+                                        </span>
+                                    )}
                                 </td>
                             </tr>
                         ))}

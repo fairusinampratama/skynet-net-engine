@@ -84,6 +84,26 @@ func (c *Client) SetSecretProfile(user, newProfile string) error {
 	return err
 }
 
+// GetAllSecrets fetches all PPPoE secrets from the router
+func (c *Client) GetAllSecrets() ([]models.PPPoESecret, error) {
+	res, err := c.Conn.Run("/ppp/secret/print", "=.proplist=name,profile,disabled")
+	if err != nil {
+		return nil, err
+	}
+
+	var secrets []models.PPPoESecret
+	for _, re := range res.Re {
+		disabled := re.Map["disabled"] == "true"
+		secrets = append(secrets, models.PPPoESecret{
+			Name:     re.Map["name"],
+			Profile:  re.Map["profile"],
+			Disabled: disabled,
+		})
+	}
+
+	return secrets, nil
+}
+
 func (c *Client) AddAddressList(ip, list, comment string) error {
 	_, err := c.Conn.Run(
 		"/ip/firewall/address-list/add",

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"skynet-net-engine-api/internal/core"
 	"skynet-net-engine-api/internal/database"
+	"skynet-net-engine-api/internal/models"
 	"github.com/gin-gonic/gin"
 )
 
@@ -217,6 +218,67 @@ func GetTargets(c *gin.Context) {
 		// logger.Debug("Targets fetched", zap.String("rid", requestID), zap.Int("count", len(targets)))
 	}
 }
+
+// GetAllUsers godoc
+// @Summary      Get All Users with Status
+// @Description  Returns all PPPoE users from database with real-time connection status
+// @Tags         Monitoring
+// @Accept       json
+// @Produce      json
+// @Param        id   path   int  true  \"Router ID\"
+// @Success      200  {array}  models.UserWithStatus
+// @Router       /router/{id}/users [get]
+func GetAllUsers(c *gin.Context) {
+	idStr := c.Param("id")
+	routerID, _ := strconv.Atoi(idStr)
+	
+	// 1. Get all users from database
+	dbUsers, err := database.GetUsersByRouter(routerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
+	}
+	
+	// 2. Get active sessions from worker cache
+	worker := core.GlobalPool.GetWorker(routerID)
+	if worker == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Router not found"})
+		return
+	}
+	
+	worker.Lock.RLock()
+	activeSessions := worker.ActiveUsers
+	worker.Lock.RUnlock()
+	
+	// 3. Build session map for fast lookup
+	sessionMap := make(map[string]models.ActiveUser)
+	for _, session := range activeSessions {
+		sessionMap[session.Name] = session
+	}
+	
+	// 4. Build response with status
+	var result []models.UserWithStatus
+	for username, profile := range dbUsers {
+		if session, isActive := sessionMap[username]; isActive {
+			result = append(result, models.UserWithStatus{
+				Username: username,
+				Status:   "connected",
+				IP:       session.Address,
+				Uptime:   session.Uptime,
+				Profile:  profile,
+			})
+		} else {
+			result = append(result, models.UserWithStatus{
+				Username: username,
+				Status:   "offline",
+				Profile:  profile,
+			})
+		}
+	}
+	
+	c.JSON(http.StatusOK, result)
+}
+
 
 // GetRouterHealth godoc
 // @Summary      Get Router Health
