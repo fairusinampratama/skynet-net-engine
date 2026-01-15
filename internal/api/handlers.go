@@ -225,7 +225,7 @@ func GetTargets(c *gin.Context) {
 // @Tags         Monitoring
 // @Accept       json
 // @Produce      json
-// @Param        id   path   int  true  \"Router ID\"
+// @Param        id path int true "Router ID"
 // @Success      200  {array}  models.UserWithStatus
 // @Router       /router/{id}/users [get]
 func GetAllUsers(c *gin.Context) {

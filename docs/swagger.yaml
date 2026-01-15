@@ -61,6 +61,20 @@ definitions:
       version:
         type: string
     type: object
+  models.UserWithStatus:
+    properties:
+      ip:
+        type: string
+      profile:
+        type: string
+      status:
+        description: '"connected" or "offline"'
+        type: string
+      uptime:
+        type: string
+      username:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -135,6 +149,30 @@ paths:
           schema:
             $ref: '#/definitions/models.SystemResource'
       summary: Get Router Health
+      tags:
+      - Monitoring
+  /router/{id}/users:
+    get:
+      consumes:
+      - application/json
+      description: Returns all PPPoE users from database with real-time connection
+        status
+      parameters:
+      - description: Router ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.UserWithStatus'
+            type: array
+      summary: Get All Users with Status
       tags:
       - Monitoring
   /secret:

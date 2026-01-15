@@ -119,6 +119,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/router/{id}/users": {
+            "get": {
+                "description": "Returns all PPPoE users from database with real-time connection status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Monitoring"
+                ],
+                "summary": "Get All Users with Status",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Router ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.UserWithStatus"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/secret": {
             "post": {
                 "description": "Adds a new PPPoE secret to a router",
@@ -323,6 +358,27 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UserWithStatus": {
+            "type": "object",
+            "properties": {
+                "ip": {
+                    "type": "string"
+                },
+                "profile": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"connected\" or \"offline\"",
+                    "type": "string"
+                },
+                "uptime": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
