@@ -1,0 +1,35 @@
+# Binaries
+/net-engine
+/net-engine.exe
+/main
+/main.exe
+/skynet-net-engine-api
+/skynet-net-engine-api.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files and artifacts
+*.o
+*.out
+*.test
+
+# Dependency directories (if vendored)
+# vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
