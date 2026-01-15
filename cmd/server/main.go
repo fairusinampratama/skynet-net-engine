@@ -35,11 +35,15 @@ func main() {
 	database.Init()
 	defer database.DB.Close()
 
-	// 3. Initialize Worker Pool (Spawns 1 Goroutine per Router)
+	// 3. Init Worker Pool (Async Start)
 	core.InitPool()
 
-	// 4. Start HTTP API
-	go api.Start(":8080")
+	// 4. EXPERT: Warmup Phase
+	// Block until routers are connected (or timeout)
+	core.GlobalPool.WaitForReady()
+
+	// 5. Start API Server (Blocks main thread)
+	api.Start(":8080")
 
 	// Block forever
 	select {}

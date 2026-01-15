@@ -5,6 +5,7 @@ import (
 	"time"
 	"strconv"
 	"skynet-net-engine-api/internal/core"
+	"skynet-net-engine-api/internal/database"
 	"github.com/gin-gonic/gin"
 )
 
@@ -275,11 +276,11 @@ func GetUserTraffic(c *gin.Context) {
 			c.JSON(http.StatusOK, res)
 		case err := <-cmd.Error:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		case <-time.After(3 * time.Second):
+		case <-time.After(10 * time.Second):
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": "Timeout waiting for router"})
 		}
-	default:
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Worker busy"})
+	case <-time.After(2 * time.Second):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Router queue full or offline"})
 	}
 }
 
@@ -308,5 +309,20 @@ func TriggerBackup(c *gin.Context) {
 	}
 	
 	c.JSON(http.StatusOK, gin.H{"status": "Backup created", "file": filename + ".backup"})
+}
+
+func GetRouters(c *gin.Context) {
+	routers, err := database.GetAllRouters()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch routers"})
+		return
+	}
+	
+	// Sanitize passwords
+	for i := range routers {
+		routers[i].Password = ""
+	}
+	
+	c.JSON(http.StatusOK, routers)
 }
 

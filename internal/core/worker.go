@@ -15,21 +15,39 @@ type Worker struct {
 	Client   *mikrotik.Client
 	IsOnline bool
 	
+	// Synchronization
+	once sync.Once
+	wg   *sync.WaitGroup
+
 	// Cache
 	ActiveUsers    []models.ActiveUser
 	SystemResource *models.SystemResource
 	Lock           sync.RWMutex
 }
 
-func NewWorker(r models.Router) *Worker {
+func NewWorker(r models.Router, wg *sync.WaitGroup) *Worker {
 	return &Worker{
 		Router:  r,
 		CmdChan: make(chan Command, 10), // Buffered channel
+		wg:      wg,
 	}
 }
 
 // Start begins the persistent loop
 func (w *Worker) Start() {
+	// Ensure we always mark as done eventually, even if we crash or never connect
+	// But ideally we mark done inside the loop upon success/failure decision
+	// For now, simpler: Signal ready on first connect OR first timeout failure
+	
+	// Helper to signal readiness once
+	signalReady := func() {
+		w.once.Do(func() {
+			if w.wg != nil {
+				w.wg.Done()
+			}
+		})
+	}
+
 	go w.metricsLoop() // Start background metrics/keepalive
 
 	for {
@@ -40,6 +58,11 @@ func (w *Worker) Start() {
 		if err != nil {
 			logger.Error("Connection failed, retrying in 5s...", zap.String("host", w.Router.Host), zap.Error(err))
 			w.IsOnline = false
+			
+			// If we fail the first connect, we consider this worker "warmed up" (but failed)
+			// so we don't block the entire server forever.
+			signalReady()
+			
 			time.Sleep(5 * time.Second)
 			continue // Retry loop
 		}
@@ -50,10 +73,15 @@ func (w *Worker) Start() {
 		logger.Info("Router Connected!", zap.String("host", w.Router.Host))
 		SendWebhook("router.up", w.Router.ID, w.Router.Host, nil)
 
-		// 3. Command Loop (Blocks until connection dies)
+		// 3. WARMUP: Fetch initial data IMMEDIATELY
+		logger.Info("Warming up cache...", zap.String("host", w.Router.Host))
+		w.refreshMetrics() // Force immediate fetch
+		signalReady()      // Signal we are ready to serve
+
+		// 4. Command Loop (Blocks until connection dies)
 		w.handleCommands()
 
-		// 4. Cleanup after disconnect
+		// 5. Cleanup after disconnect
 		logger.Warn("Router Disconnected. Cleaning up...", zap.String("host", w.Router.Host))
 		if w.IsOnline {
 			SendWebhook("router.down", w.Router.ID, w.Router.Host, "Connection lost")
@@ -63,7 +91,7 @@ func (w *Worker) Start() {
 			w.Client.Close()
 		}
 		
-		// 5. Backoff before reconnecting
+		// 6. Backoff before reconnecting
 		time.Sleep(3 * time.Second)
 	}
 }
@@ -119,6 +147,9 @@ func (w *Worker) handleCommands() {
 		case CmdBackup:
 			name := cmd.Payload.(string)
 			err = w.Client.RunBackup(name)
+
+		case CmdRefreshMetrics:
+			w.refreshMetrics()
 		}
 
 		if cmd.Error != nil {
@@ -135,30 +166,38 @@ func (w *Worker) metricsLoop() {
 	defer ticker.Stop()
 
 	for range ticker.C {
-		if !w.IsOnline || w.Client == nil {
+		if !w.IsOnline {
 			continue
 		}
-
-		users, err := w.Client.GetActiveUsers()
-		if err != nil {
-			logger.Error("Failed to fetch active users", zap.String("host", w.Router.Host), zap.Error(err))
-		} // Continue anyway to try fetching resources
-		
-		res, errRes := w.Client.GetSystemResource()
-		if errRes != nil {
-			// logging error
-		}
-
-		// Update Cache
-		w.Lock.Lock()
-		if err == nil {
-			w.ActiveUsers = users
-		}
-		if errRes == nil {
-			w.SystemResource = res
-		}
-		w.Lock.Unlock()
-		
-		// logger.Info("Metrics refreshed", zap.String("host", w.Router.Host), zap.Int("users", len(users)))
+		// Thread Safety: Send command instead of direct call
+		w.CmdChan <- Command{Type: CmdRefreshMetrics}
 	}
+}
+
+func (w *Worker) refreshMetrics() {
+	if w.Client == nil {
+		return
+	}
+
+	users, err := w.Client.GetActiveUsers()
+	if err != nil {
+		logger.Error("Failed to fetch active users", zap.String("host", w.Router.Host), zap.Error(err))
+	} 
+	
+	res, errRes := w.Client.GetSystemResource()
+	if errRes != nil {
+		// logging error optional
+	}
+
+	// Update Cache
+	w.Lock.Lock()
+	if err == nil {
+		w.ActiveUsers = users
+	}
+	if errRes == nil {
+		w.SystemResource = res
+	}
+	w.Lock.Unlock()
+	
+	// logger.Info("Metrics refreshed", zap.String("host", w.Router.Host), zap.Int("users", len(users)))
 }

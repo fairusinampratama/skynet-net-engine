@@ -3,8 +3,11 @@ package mikrotik
 import (
 	"fmt"
 	"strconv"
+	"strings"
+	"skynet-net-engine-api/pkg/logger"
 	"skynet-net-engine-api/internal/models"
 	
+	"go.uber.org/zap" // Explicit import provided
 	"github.com/go-routeros/routeros"
 )
 
@@ -107,12 +110,13 @@ func (c *Client) RemoveAddressList(ip, list string) error {
 }
 
 func (c *Client) GetActiveUsers() ([]models.ActiveUser, error) {
-	res, err := c.Conn.Run("/ppp/active/print")
+	// Optimizing query to prevent buffer overflow on large responses
+	res, err := c.Conn.Run("/ppp/active/print", "=.proplist=name,address,caller-id,uptime")
 	if err != nil {
 		return nil, err
 	}
 
-	var users []models.ActiveUser
+	users := make([]models.ActiveUser, 0)
 	for _, re := range res.Re {
 		users = append(users, models.ActiveUser{
 			Name:     re.Map["name"],
@@ -155,19 +159,45 @@ func (c *Client) GetSystemResource() (*models.SystemResource, error) {
 }
 
 func (c *Client) GetQueueTraffic(target string) (*models.TrafficStats, error) {
-	// target can be a user name (which usually maps to a simple queue of the same name)
-	// command: /queue/simple/print where name=target stats
-	
-	res, err := c.Conn.Run("/queue/simple/print", "?name="+target, "=.proplist=rate")
+	// Try exact match first
+	res, err := c.Conn.Run("/queue/simple/print", "?name="+target, "=.proplist=rate,name")
 	if err != nil {
 		return nil, err
 	}
+	
+	var queueName, rawRate string
+	
+	// If exact match fails, scan all queues for substring match
 	if len(res.Re) == 0 {
-		return nil, fmt.Errorf("queue not found")
+		logger.Warn("Exact match failed, scanning all queues...", zap.String("target", target))
+		res, err = c.Conn.Run("/queue/simple/print", "=.proplist=rate,name")
+		if err != nil {
+			return nil, err
+		}
+
+		// Find first queue containing target username
+		found := false
+		for _, re := range res.Re {
+			if strings.Contains(re.Map["name"], target) {
+				queueName = re.Map["name"]
+				rawRate = re.Map["rate"]
+				found = true
+				logger.Info("Found queue via scan", zap.String("target", target), zap.String("found", queueName))
+				break
+			}
+		}
+
+		if !found {
+			return nil, fmt.Errorf("queue not found")
+		}
+	} else {
+		// Exact match found
+		queueName = res.Re[0].Map["name"]
+		rawRate = res.Re[0].Map["rate"]
 	}
 	
-	// Rate comes like "rx/tx" (e.g. "1500/5000" in bits)
-	rawRate := res.Re[0].Map["rate"]
+	// Rate comes like "rx/tx" (e.g. "1500/5000" in bits per second)
+	// Parse it
 	
 	// Basic parsing
 	var rx, tx int64

@@ -9,6 +9,7 @@ It maintains persistent, self-healing TCP connections to hundreds of routers, al
 *   **Persistent Connections**: Dedicated Goroutine per router with automatic reconnection logic.
 *   **High Concurrency**: Thread-safe worker pool handling concurrent API requests.
 *   **REST API Bridge**: Simple HTTP endpoints for complex RouterOS commands (Sync, Secret, Queues).
+*   **Real-time Dashboard**: Built-in React + Vite frontend for monitoring traffic and health.
 *   **Real-time Monitoring**: Fetch CPU, Memory, and live Queue Traffic stats instantly.
 *   **Customer Isolation**: One-click isolation via Firewall Address Lists.
 *   **Enterprise Security**: API Key authentication (`X-App-Key`) and Webhook event dispatching.
@@ -18,6 +19,7 @@ It maintains persistent, self-healing TCP connections to hundreds of routers, al
 
 *   **Language**: Go (Golang) 1.22+
 *   **Framework**: Gin Gonic
+*   **Frontend**: React 18, Vite, Tailwind CSS (Embedded)
 *   **Database**: MySQL (for router credentials)
 *   **MikroTik Lib**: `go-routeros`
 *   **Logging**: Uber Zap
@@ -77,6 +79,15 @@ Once running, access the full Swagger UI at:
 ### Running Tests
 ```bash
 go test ./... -v
+```
+
+### Frontend Development
+To work on the React Dashboard:
+```bash
+cd web
+npm install
+npm run dev
+# Access at http://localhost:5173 (Proxies API to :8080)
 ```
 
 ### Database Seeding

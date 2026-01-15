@@ -10,6 +10,7 @@ const (
 	CmdUpdateSecret CommandType = "UPDATE_SECRET"
 	CmdIsolate      CommandType = "ISOLATE"
 	CmdGetTraffic   CommandType = "GET_TRAFFIC"
+	CmdRefreshMetrics CommandType = "REFRESH_METRICS"
 	CmdBackup       CommandType = "BACKUP"
 )
 

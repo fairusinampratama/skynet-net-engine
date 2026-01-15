@@ -1,6 +1,7 @@
 package core
 
 import (
+	"time"
 	"sync"
 	"skynet-net-engine-api/internal/database"
 	"skynet-net-engine-api/internal/models"
@@ -11,6 +12,7 @@ import (
 type Pool struct {
 	Workers map[int]*Worker
 	Lock    sync.RWMutex
+	Ready   sync.WaitGroup
 }
 
 var GlobalPool *Pool
@@ -28,7 +30,8 @@ func InitPool() {
 
 	// 2. Spawn Workers
 	for _, r := range routers {
-		worker := NewWorker(r)
+		GlobalPool.Ready.Add(1) // Expect readiness signal
+		worker := NewWorker(r, &GlobalPool.Ready)
 		
 		GlobalPool.Lock.Lock()
 		GlobalPool.Workers[r.ID] = worker
@@ -41,6 +44,25 @@ func InitPool() {
 	logger.Info("Worker Pool Initialized", zap.Int("workers", len(routers)))
 }
 
+func (p *Pool) WaitForReady() {
+	logger.Info("Waiting for routers to warmup...")
+	
+	// Create a channel to signal completion
+	done := make(chan struct{})
+	go func() {
+		p.Ready.Wait()
+		close(done)
+	}()
+
+	// Wait with timeout
+	select {
+	case <-done:
+		logger.Info("All routers ready!")
+	case <-time.After(5 * time.Second):
+		logger.Warn("Warmup timed out - Some routers may be effectively offline or slow")
+	}
+}
+
 func (p *Pool) GetWorker(id int) *Worker {
 	p.Lock.RLock()
 	defer p.Lock.RUnlock()
@@ -51,7 +73,7 @@ func (p *Pool) GetAllTargets() []models.ActiveUser {
 	p.Lock.RLock()
 	defer p.Lock.RUnlock()
 
-	var total []models.ActiveUser
+	total := make([]models.ActiveUser, 0)
 	for _, w := range p.Workers {
 		w.Lock.RLock()
 		// Copy users to avoid race conditions if underlying array changes
