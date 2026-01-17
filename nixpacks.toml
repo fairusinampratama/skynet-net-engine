@@ -1,0 +1,13 @@
+[phases.setup]
+nixPkgs = ["go", "nodejs", "npm"]
+
+[phases.build]
+cmds = [
+    "cd web && npm install && npm run build",
+    "mkdir -p internal/assets/dist",
+    "cp -r web/dist/* internal/assets/dist/",
+    "CGO_ENABLED=0 GOOS=linux go build -o skynet-net-engine-api cmd/server/main.go"
+]
+
+[start]
+cmd = "./skynet-net-engine-api"

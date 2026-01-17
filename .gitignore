@@ -1,9 +1,9 @@
 # Binaries
 /net-engine
 /net-engine.exe
-/main
-/main.exe
-/skynet-net-engine-api
+# Generated Binaries
+skynet-net-engine-api
+internal/assets/dist
 /skynet-net-engine-api.exe
 *.exe
 *.dll

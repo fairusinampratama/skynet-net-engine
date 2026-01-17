@@ -3,15 +3,16 @@
 ## Quick Start
 
 ```bash
-# Navigate to project
-cd ~/golang/skynet-net-engine-api
+# 1. Start Database (Native)
+# e.g., systemctl start mysql OR brew services start mysql hiding
+# Ensure your local DB credentials match .env
 
-# Run server
-./skynet-net-engine-api
+# 2. Run Backend (Native)
+go run cmd/server/main.go
 
-# Or build and run
-go build -o skynet-net-engine-api cmd/server/main.go
-./skynet-net-engine-api
+# 3. Run Frontend (Native)
+cd web
+npm run dev
 ```
 
 ## Database Setup
@@ -35,18 +36,24 @@ go run cmd/sync-users/main.go
 ## Development
 
 ```bash
-# Frontend development (hot reload)
+# Terminal 1: Database (Native)
+# Start your local MySQL server manually
+
+# Terminal 2: Backend
+# Hot-reload supported via 'air' if installed, otherwise:
+go run cmd/server/main.go
+
+# Terminal 3: Frontend (Vite)
 cd web
-npm install
-npm run dev  # Runs on http://localhost:5173
-
-# Build frontend for production
-npm run build
-
-# Deploy frontend to Go binary
-cp -r web/dist/* internal/assets/dist/
-go build -o skynet-net-engine-api cmd/server/main.go
+npm run dev
 ```
+
+### Production Deployment (Nixpacks)
+No manual build required! Push to Coolify/Railway and it will auto-detect `nixpacks.toml`.
+- **Frontend**: Automatically built via `npm run build`
+- **Backend**: Automatically built via `go build`
+- **Asset Embedding**: Handled seamlessly by Nixpacks
+
 
 ## API Endpoints
 
