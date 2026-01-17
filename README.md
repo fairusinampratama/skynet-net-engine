@@ -34,26 +34,46 @@ git checkout feature/full-stack
 
 ## 🚀 Deployment
 
-### Option 1: Docker (Recommended)
-
-```bash
-# 1. Start Services
-docker-compose up -d
-
-# 2. Check Logs
-docker-compose logs -f net-engine
-```
-
-### Option 2: Manual (Linux/Systemd)
+### Option 1: Native Go Build (Recommended)
+This is the simplest way to run the backend engine.
 
 ```bash
 # 1. Build
 go build -o skynet-net-engine-api cmd/server/main.go
 
-# 2. Setup Service
-sudo cp net-engine.service /etc/systemd/system/
-sudo systemctl enable net-engine
-sudo systemctl start net-engine
+# 2. Run
+./skynet-net-engine-api
+```
+
+### Option 2: Nixpacks / Coolify
+This project includes a `nixpacks.toml` for zero-config deployment.
+If you are using **Coolify** or any Nixpacks-compatible platform, simply push this repository and it will build automatically.
+
+### Option 3: Systemd (Linux Service)
+To run in background as a service:
+
+1. Create `/etc/systemd/system/net-engine.service`:
+```ini
+[Unit]
+Description=Skynet Net Engine
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/path/to/app
+ExecStart=/path/to/app/skynet-net-engine-api
+Restart=always
+EnvironmentFile=/path/to/app/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+2. Enable and Start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable net-engine --now
 ```
 
 ## ⚙️ Configuration
