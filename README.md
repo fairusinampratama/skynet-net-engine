@@ -16,20 +16,18 @@ It maintains persistent, self-healing TCP connections to hundreds of routers, al
 *   **Enterprise Security**: API Key authentication (`X-App-Key`) and Webhook event dispatching
 *   **Swagger Documentation**: Built-in interactive API docs at `/api/v1/swagger/index.html`
 
-### Dashboard (React + Vite)
-*   **Multi-Router Selector**: Switch between routers via dropdown
-*   **Live Traffic Monitoring**: Click any user to see real-time bandwidth graph (updates every 1s)
-*   **System Health Widget**: CPU, Memory, Uptime with auto-refresh
-*   **Active Sessions Table**: Paginated list (10 per page) of connected users
-*   **Skeleton Loaders**: Polished loading states for all widgets
-*   **Error Resilience**: Handles transient network errors (500-504) gracefully
-*   **Embedded Frontend**: Single binary deployment with `//go:embed`
+### Dashboard (Frontend)
+> **Note**: The React frontend has been moved to the `feature/full-stack` branch. The `main` branch is now a dedicated Go backend API.
+
+To run the full stack (Backend + Frontend), checkout the branch:
+```bash
+git checkout feature/full-stack
+```
 
 ## 🛠️ Tech Stack
 
 *   **Language**: Go (Golang) 1.22+
 *   **Framework**: Gin Gonic
-*   **Frontend**: React 18, Vite, Tailwind CSS (Embedded)
 *   **Database**: MySQL (for router credentials)
 *   **MikroTik Lib**: `go-routeros`
 *   **Logging**: Uber Zap
@@ -105,24 +103,6 @@ Once running, access the full Swagger UI at:
 ### Running Tests
 ```bash
 go test ./... -v
-```
-
-### Frontend Development
-To work on the React Dashboard:
-```bash
-cd web
-npm install
-npm run dev  # Development server at http://localhost:5173
-```
-
-### Building for Production
-```bash
-cd web
-npm run build  # Outputs to web/dist/
-
-# Deploy to embedded assets
-cp -r web/dist/* internal/assets/dist/
-go build -o skynet-net-engine-api cmd/server/main.go
 ```
 
 ### Database Seeding
