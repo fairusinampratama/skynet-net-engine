@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import { api } from "../../api/client";
-import { Cpu, MemoryStick, Activity, Server } from "lucide-react";
+import { Cpu, MemoryStick, Activity, Server, AlertCircle, RefreshCw } from "lucide-react";
 import { Skeleton } from "../../components/ui/Skeleton";
 
 const fetcher = (url) => api.get(url).then((res) => res.data);
@@ -19,7 +19,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color }) => (
 );
 
 export const ResourceWidget = ({ routerId = 1 }) => {
-    const { data, error } = useSWR(`/router/${routerId}/health`, fetcher, {
+    const { data, error, mutate } = useSWR(`/router/${routerId}/health`, fetcher, {
         refreshInterval: 5000,
     });
 
@@ -31,7 +31,30 @@ export const ResourceWidget = ({ routerId = 1 }) => {
     const isLoading = !data && (!error || isTransient);
     const isError = error && !isTransient;
 
-    if (isError) return <div className="p-4 bg-red-50 text-red-500 rounded">Failed to load health data</div>;
+    if (isError) return (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center justify-between">
+                <span>System Health</span>
+                <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-bold">OFFLINE</span>
+            </h3>
+            <div className="flex flex-col items-center justify-center py-8 text-center bg-red-50 rounded-lg border border-red-100">
+                <div className="bg-red-100 p-3 rounded-full mb-3">
+                    <AlertCircle className="w-8 h-8 text-red-500" />
+                </div>
+                <h4 className="text-slate-800 font-medium mb-1">Connection Failed</h4>
+                <p className="text-sm text-slate-500 mb-4 max-w-xs">
+                    Could not reach the router. It might be offline or unreachable.
+                </p>
+                <button
+                    onClick={() => mutate()}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+                >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Retry Connection</span>
+                </button>
+            </div>
+        </div>
+    );
 
     if (isLoading) return (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
