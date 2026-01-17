@@ -30,11 +30,8 @@ func Start(port string) {
 		logger.Info("API Request", 
 			logger.Field("method", c.Request.Method),
 			logger.Field("path", c.Request.URL.Path),
-			logger.Field("ip", c.ClientIP()),
+			logger.Field("ip", c.ClientIP()) /* Fixed trailing comma syntax if needed, but go fmt handles it */,
 		)
-		c.Next()
-	})
-
 		c.Next()
 	})
 
