@@ -68,7 +68,7 @@ definitions:
       profile:
         type: string
       status:
-        description: '"connected" or "offline"'
+        description: '"connected", "isolated", or "offline"'
         type: string
       uptime:
         type: string
@@ -156,7 +156,7 @@ paths:
       consumes:
       - application/json
       description: Returns all PPPoE users from database with real-time connection
-        status
+        status (connected, isolated, offline)
       parameters:
       - description: Router ID
         in: path

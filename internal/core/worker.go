@@ -5,6 +5,7 @@ import (
 	"sync"
 	"skynet-net-engine-api/internal/mikrotik"
 	"skynet-net-engine-api/internal/models"
+	"skynet-net-engine-api/internal/database"
 	"skynet-net-engine-api/pkg/logger"
 	"go.uber.org/zap"
 )
@@ -52,11 +53,11 @@ func (w *Worker) Start() {
 
 	for {
 		// 1. Try to Connect
-		logger.Info("Dialing router...", zap.String("host", w.Router.Host), zap.String("user", w.Router.Username))
+		logger.Info("Dialing router...", zap.String("host", w.Router.Host), zap.Int("port", w.Router.Port), zap.String("user", w.Router.Username))
 		client, err := mikrotik.NewClient(w.Router)
 		
 		if err != nil {
-			logger.Error("Connection failed, retrying in 5s...", zap.String("host", w.Router.Host), zap.Error(err))
+			logger.Error("Connection failed, retrying in 5s...", zap.String("host", w.Router.Host), zap.Int("port", w.Router.Port), zap.Error(err))
 			w.IsOnline = false
 			
 			// If we fail the first connect, we consider this worker "warmed up" (but failed)
@@ -76,6 +77,10 @@ func (w *Worker) Start() {
 		// 3. WARMUP: Fetch initial data IMMEDIATELY
 		logger.Info("Warming up cache...", zap.String("host", w.Router.Host))
 		w.refreshMetrics() // Force immediate fetch
+		
+		// Trigger initial Sync of Secrets (Async)
+		w.CmdChan <- Command{Type: CmdSync}
+		
 		signalReady()      // Signal we are ready to serve
 
 		// 4. Command Loop (Blocks until connection dies)
@@ -105,8 +110,23 @@ func (w *Worker) handleCommands() {
 		var err error
 		switch cmd.Type {
 		case CmdSync:
-			// TODO: Implement Sync
-			cmd.Result <- "Synced"
+			secrets, errSync := w.Client.GetAllSecrets()
+			if errSync != nil {
+				err = errSync
+				logger.Error("Failed to fetch secrets for sync", zap.String("router", w.Router.Name), zap.Error(err))
+			} else {
+				go func(secrets []models.PPPoESecret, routerID int) {
+					count := 0
+					for _, s := range secrets {
+						if dbErr := database.UpsertUser(s.Name, routerID, s.Profile, s.RemoteAddress, !s.Disabled); dbErr == nil {
+							count++
+						}
+					}
+					logger.Info("Synced Secrets to DB", zap.String("router", w.Router.Name), zap.Int("synced", count), zap.Int("total", len(secrets)))
+				}(secrets, w.Router.ID)
+				
+				cmd.Result <- "Synced"
+			}
 		
 		case CmdCreateSecret:
 			payload := cmd.Payload.(map[string]string)
@@ -193,6 +213,7 @@ func (w *Worker) refreshMetrics() {
 	w.Lock.Lock()
 	if err == nil {
 		w.ActiveUsers = users
+		logger.Info("Worker Cache Updated", zap.String("router", w.Router.Name), zap.Int("active_users", len(w.ActiveUsers)))
 	}
 	if errRes == nil {
 		w.SystemResource = res

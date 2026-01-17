@@ -121,7 +121,7 @@ const docTemplate = `{
         },
         "/router/{id}/users": {
             "get": {
-                "description": "Returns all PPPoE users from database with real-time connection status",
+                "description": "Returns all PPPoE users from database with real-time connection status (connected, isolated, offline)",
                 "consumes": [
                     "application/json"
                 ],
@@ -372,7 +372,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "description": "\"connected\" or \"offline\"",
+                    "description": "\"connected\", \"isolated\", or \"offline\"",
                     "type": "string"
                 },
                 "uptime": {

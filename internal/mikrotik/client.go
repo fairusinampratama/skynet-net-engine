@@ -86,7 +86,7 @@ func (c *Client) SetSecretProfile(user, newProfile string) error {
 
 // GetAllSecrets fetches all PPPoE secrets from the router
 func (c *Client) GetAllSecrets() ([]models.PPPoESecret, error) {
-	res, err := c.Conn.Run("/ppp/secret/print", "=.proplist=name,profile,disabled")
+	res, err := c.Conn.Run("/ppp/secret/print", "=.proplist=name,profile,remote-address,disabled")
 	if err != nil {
 		return nil, err
 	}
@@ -95,9 +95,10 @@ func (c *Client) GetAllSecrets() ([]models.PPPoESecret, error) {
 	for _, re := range res.Re {
 		disabled := re.Map["disabled"] == "true"
 		secrets = append(secrets, models.PPPoESecret{
-			Name:     re.Map["name"],
-			Profile:  re.Map["profile"],
-			Disabled: disabled,
+			Name:          re.Map["name"],
+			Profile:       re.Map["profile"],
+			RemoteAddress: re.Map["remote-address"],
+			Disabled:      disabled,
 		})
 	}
 
@@ -133,8 +134,11 @@ func (c *Client) GetActiveUsers() ([]models.ActiveUser, error) {
 	// Optimizing query to prevent buffer overflow on large responses
 	res, err := c.Conn.Run("/ppp/active/print", "=.proplist=name,address,caller-id,uptime")
 	if err != nil {
+		logger.Error("Mikrotik Query Failed", zap.Error(err))
 		return nil, err
 	}
+
+	logger.Info("Mikrotik Raw Response", zap.Int("count", len(res.Re)), zap.String("router", c.Router.Name))
 
 	users := make([]models.ActiveUser, 0)
 	for _, re := range res.Re {

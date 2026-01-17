@@ -4,9 +4,11 @@ import (
 	"net/http"
 	"time"
 	"strconv"
+	
 	"skynet-net-engine-api/internal/core"
 	"skynet-net-engine-api/internal/database"
 	"skynet-net-engine-api/internal/models"
+	
 	"github.com/gin-gonic/gin"
 )
 
@@ -221,7 +223,7 @@ func GetTargets(c *gin.Context) {
 
 // GetAllUsers godoc
 // @Summary      Get All Users with Status
-// @Description  Returns all PPPoE users from database with real-time connection status
+// @Description  Returns all PPPoE users from database with real-time connection status (connected, isolated, offline)
 // @Tags         Monitoring
 // @Accept       json
 // @Produce      json
@@ -232,14 +234,7 @@ func GetAllUsers(c *gin.Context) {
 	idStr := c.Param("id")
 	routerID, _ := strconv.Atoi(idStr)
 	
-	// 1. Get all users from database
-	dbUsers, err := database.GetUsersByRouter(routerID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
-		return
-	}
-	
-	// 2. Get active sessions from worker cache
+	// 1. Get active sessions from worker cache (PRIMARY SOURCE)
 	worker := core.GlobalPool.GetWorker(routerID)
 	if worker == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Router not found"})
@@ -250,28 +245,47 @@ func GetAllUsers(c *gin.Context) {
 	activeSessions := worker.ActiveUsers
 	worker.Lock.RUnlock()
 	
-	// 3. Build session map for fast lookup
-	sessionMap := make(map[string]models.ActiveUser)
+	// 2. Get DB users for enrichment (SECONDARY SOURCE)
+	dbUsers, _ := database.GetUsersByRouter(routerID)
+	// We ignore error here because we still want to show active users even if DB fails
+	
+	// 3. Build response: Start with Active Sessions
+	result := []models.UserWithStatus{}
+	
+	// Track who we've already added
+	addedUsers := make(map[string]bool)
+	
+	// A. Add all Active Users (Real-time from Router)
 	for _, session := range activeSessions {
-		sessionMap[session.Name] = session
+		// Try to find profile from DB, default to "unknown" or empty
+		profile := "unknown"
+		if p, exists := dbUsers[session.Name]; exists {
+			profile = p.Profile
+		}
+		
+		result = append(result, models.UserWithStatus{
+			Username: session.Name,
+			Status:   "connected",
+			IP:       session.Address,
+			Uptime:   session.Uptime,
+			Profile:  profile,
+		})
+		addedUsers[session.Name] = true
 	}
 	
-	// 4. Build response with status
-	var result []models.UserWithStatus
-	for username, profile := range dbUsers {
-		if session, isActive := sessionMap[username]; isActive {
+	// B. Add Offline/Isolated Users from DB
+	for username, dbUser := range dbUsers {
+		if !addedUsers[username] {
+			status := "offline"
+			if !dbUser.IsEnabled {
+				status = "isolated"
+			}
+			
 			result = append(result, models.UserWithStatus{
 				Username: username,
-				Status:   "connected",
-				IP:       session.Address,
-				Uptime:   session.Uptime,
-				Profile:  profile,
-			})
-		} else {
-			result = append(result, models.UserWithStatus{
-				Username: username,
-				Status:   "offline",
-				Profile:  profile,
+				Status:   status,
+				Profile:  dbUser.Profile,
+				IP:       dbUser.RemoteAddress,
 			})
 		}
 	}

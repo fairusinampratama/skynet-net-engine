@@ -32,9 +32,36 @@ func Init() {
 
 	if err := DB.Ping(); err != nil {
 		logger.Warn("Failed to ping database - Running in Offline/Mock Mode", zap.Error(err))
-		// We don't Fatal here to allow testing the API without a DB
-		// In production, this should probably fatal.
 	} else {
 		logger.Info("Database connected successfully")
+		Migrate()
+	}
+}
+
+func Migrate() {
+	// 1. Ensure Table Exists (Previous logic assumed it exists, but good to be safe)
+	// We skip CREATE TABLE for now as it's likely handled elsewhere or pre-existing
+	
+	// 2. Add remote_address column if missing
+	// We use IGNORE or check approach. Simplest for MySQL is a conditional procedure or just try-catch approach.
+	// Since we can't easily do try-catch on DDL in Go without parsing error, we'll try to add it.
+	// Duplicate column error is fine to ignore if we check strictly, but here we'll just run generic ADD COLUMN IF NOT EXISTS logic
+	// MySQL 8.0 support IF NOT EXISTS in ADD COLUMN, but MariaDB might not in all versions.
+	// We will simply try to query it first.
+	
+	query := "SHOW COLUMNS FROM pppoe_users LIKE 'remote_address'"
+	rows, err := DB.Query(query)
+	if err != nil {
+		logger.Error("Failed to check schema", zap.Error(err))
+		return
+	}
+	defer rows.Close()
+	
+	if !rows.Next() {
+		logger.Info("Migrating DB: Adding remote_address to pppoe_users")
+		_, err := DB.Exec("ALTER TABLE pppoe_users ADD COLUMN remote_address VARCHAR(45) DEFAULT NULL")
+		if err != nil {
+			logger.Error("Failed to migrate database", zap.Error(err))
+		}
 	}
 }

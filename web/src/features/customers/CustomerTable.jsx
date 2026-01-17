@@ -1,8 +1,9 @@
 import { useState } from "react";
-import useSWR from "swr";
-import { api } from "../../api/client";
-import { Wifi, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Users } from "lucide-react";
+import useSWR, { mutate } from "swr"; // Added mutate
+import { api, isolateUser } from "../../api/client"; // Added isolateUser
+import { Wifi, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, Users, Lock, Shield, ShieldAlert, Ban, UserPlus } from "lucide-react"; // Added icons
 import { Skeleton } from "../../components/ui/Skeleton";
+import { AddUserModal } from "./AddUserModal";
 
 const fetcher = (url) => api.get(url).then((res) => res.data);
 
@@ -11,11 +12,47 @@ export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
     const [pageSize, setPageSize] = useState(10);
     const [sortColumn, setSortColumn] = useState('username');
     const [sortDirection, setSortDirection] = useState('asc');
+    const [processingUser, setProcessingUser] = useState(null); // Track which user is being toggled
+    const [isAddUserOpen, setIsAddUserOpen] = useState(false);
 
     const { data, error, isLoading } = useSWR(`/router/${routerId}/users`, fetcher, {
-        refreshInterval: 30000,
+        refreshInterval: 10000, // Faster refresh
         revalidateOnFocus: false,
     });
+
+    const handleIsolate = async (e, user) => {
+        e.stopPropagation(); // Don't select row
+        if (!user.ip) {
+            alert("User has no IP, cannot isolate yet.");
+            return;
+        }
+
+        const isIsolated = user.status === 'isolated';
+        const action = isIsolated ? 'remove' : 'add';
+        const confirmMsg = isIsolated
+            ? `Restore access for ${user.username}?`
+            : `ISOLATE ${user.username}? They will lose internet access.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        setProcessingUser(user.username);
+        try {
+            await isolateUser({
+                ip: user.ip,
+                action: action,
+                list: 'ISOLATED',
+                comment: `Manual ${action} via Dashboard`
+            });
+            // Optimistic update or mutate
+            mutate(`/router/${routerId}/users`);
+        } catch (err) {
+            alert("Action failed: " + err.message);
+        } finally {
+            setProcessingUser(null);
+        }
+    };
+
+
 
     // Sorting Logic
     const safeData = data || [];
@@ -23,10 +60,11 @@ export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
         let aVal = a[sortColumn] || '';
         let bVal = b[sortColumn] || '';
 
-        // Handle status sorting (connected first)
+        // Handle status sorting (connected > isolated > offline)
         if (sortColumn === 'status') {
-            aVal = a.status === 'connected' ? '0' : '1';
-            bVal = b.status === 'connected' ? '0' : '1';
+            const statusWeight = { connected: 0, isolated: 1, offline: 2 };
+            aVal = statusWeight[a.status] ?? 3;
+            bVal = statusWeight[b.status] ?? 3;
         }
 
         if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
@@ -67,6 +105,24 @@ export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
                     Total: {sortedData.length}
                 </span>
             </div>
+
+            {/* Toolbar */}
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex justify-end">
+                <button
+                    onClick={() => setIsAddUserOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm shadow-blue-600/20"
+                >
+                    <UserPlus className="w-4 h-4" />
+                    Add Customer
+                </button>
+            </div>
+
+            {isAddUserOpen && (
+                <AddUserModal
+                    routerId={routerId}
+                    onClose={() => setIsAddUserOpen(false)}
+                />
+            )}
 
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -111,6 +167,9 @@ export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
                                     )}
                                 </div>
                             </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                Actions
+                            </th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -139,12 +198,36 @@ export const CustomerTable = ({ routerId = 1, onSelectUser, selectedUser }) => {
                                             <Wifi className="w-3 h-3" />
                                             Connected
                                         </span>
+                                    ) : user.status === 'isolated' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+                                            <Lock className="w-3 h-3" />
+                                            Isolated
+                                        </span>
                                     ) : (
                                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
                                             <div className="w-2 h-2 rounded-full bg-slate-400" />
                                             Offline
                                         </span>
                                     )}
+                                </td>
+                                <td className="px-6 py-4">
+                                    <button
+                                        onClick={(e) => handleIsolate(e, user)}
+                                        disabled={processingUser === user.username}
+                                        className={`p-2 rounded-lg border transition-all ${user.status === 'isolated'
+                                            ? 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100'
+                                            : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                                            }`}
+                                        title={user.status === 'isolated' ? "Restore Connection" : "Isolate User"}
+                                    >
+                                        {processingUser === user.username ? (
+                                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                        ) : user.status === 'isolated' ? (
+                                            <Shield className="w-4 h-4" />
+                                        ) : (
+                                            <Ban className="w-4 h-4" />
+                                        )}
+                                    </button>
                                 </td>
                             </tr>
                         ))}

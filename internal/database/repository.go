@@ -4,6 +4,7 @@ import (
 	"skynet-net-engine-api/internal/models"
 	"go.uber.org/zap"
 	"skynet-net-engine-api/pkg/logger"
+	"database/sql"
 )
 
 func GetAllRouters() ([]models.Router, error) {
@@ -28,37 +29,54 @@ func GetAllRouters() ([]models.Router, error) {
 }
 
 // UpsertUser inserts or updates a PPPoE user
-func UpsertUser(username string, routerID int, profile string) error {
+func UpsertUser(username string, routerID int, profile string, remoteAddress string, isEnabled bool) error {
 	query := `
-		INSERT INTO pppoe_users (username, router_id, profile, is_enabled)
-		VALUES (?, ?, ?, true)
+		INSERT INTO pppoe_users (username, router_id, profile, remote_address, is_enabled)
+		VALUES (?, ?, ?, ?, ?)
 		ON DUPLICATE KEY UPDATE
 			profile = VALUES(profile),
+			remote_address = VALUES(remote_address),
+			is_enabled = VALUES(is_enabled),
 			updated_at = CURRENT_TIMESTAMP
 	`
-	_, err := DB.Exec(query, username, routerID, profile)
+	_, err := DB.Exec(query, username, routerID, profile, remoteAddress, isEnabled)
 	if err != nil {
 		logger.Error("Failed to upsert user", zap.String("user", username), zap.Error(err))
 	}
 	return err
 }
 
-// GetUsersByRouter fetches all users for a specific router
-func GetUsersByRouter(routerID int) (map[string]string, error) {
-	rows, err := DB.Query("SELECT username, profile FROM pppoe_users WHERE router_id = ? AND is_enabled = true", routerID)
+// DBUser represents a user record from the database
+type DBUser struct {
+	Profile       string
+	RemoteAddress string
+	IsEnabled     bool
+}
+
+// GetUsersByRouter fetches all users for a specific router (including disabled ones)
+func GetUsersByRouter(routerID int) (map[string]DBUser, error) {
+	rows, err := DB.Query("SELECT username, profile, remote_address, is_enabled FROM pppoe_users WHERE router_id = ?", routerID)
 	if err != nil {
 		logger.Error("Failed to fetch users by router", zap.Int("router_id", routerID), zap.Error(err))
 		return nil, err
 	}
 	defer rows.Close()
 
-	users := make(map[string]string) // username -> profile
+	users := make(map[string]DBUser) // username -> DBUser
 	for rows.Next() {
 		var username, profile string
-		if err := rows.Scan(&username, &profile); err != nil {
+		var remoteAddress sql.NullString // Handle potential NULLs
+		var isEnabled bool
+		
+		if err := rows.Scan(&username, &profile, &remoteAddress, &isEnabled); err != nil {
+			logger.Error("Scan error", zap.Error(err))
 			continue
 		}
-		users[username] = profile
+		users[username] = DBUser{
+			Profile:       profile,
+			RemoteAddress: remoteAddress.String,
+			IsEnabled:     isEnabled,
+		}
 	}
 
 	return users, nil
