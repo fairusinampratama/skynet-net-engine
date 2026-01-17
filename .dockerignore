@@ -1,0 +1,18 @@
+# Version Control
+.git
+.gitignore
+
+# Frontend (Excluded for Backend-Only Deployment)
+web/
+node_modules/
+
+# Secrets & Env
+.env
+.env.*
+*.pem
+*.key
+
+# Build Artifacts
+skynet-net-engine-api
+*.log
+tmp/
